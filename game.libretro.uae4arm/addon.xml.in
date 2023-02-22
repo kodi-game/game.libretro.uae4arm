@@ -22,6 +22,7 @@
 		<platform>@PLATFORM@</platform>
 		<source>https://github.com/kodi-game/game.libretro.uae4arm</source>
 		<summary lang="en">Amiga (UAE4ARM)</summary>
+		<summary lang="en_GB">Amiga (UAE4ARM)</summary>
 		<description lang="en_GB">UAE stands for the Ubiquitous Amiga Emulator. UAE4ARM is optimized for Android and the Raspberry Pi.</description>
 	</extension>
 </addon>
