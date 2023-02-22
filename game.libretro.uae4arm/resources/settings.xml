@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<settings>
+	<category label="30000">
+		<setting label="30001" type="select" id="uae4arm_model" values="Auto|A500|A600|A1200" default="Auto"/>
+		<setting label="30002" type="select" id="uae4arm_fastmem" values="None|1 MB|2 MB|4 MB|8 MB" default="None"/>
+		<setting label="30003" type="select" id="uae4arm_resolution" values="640x270|320x240|320x256|320x262|640x240|640x256|640x262|640x270|768x270" default="640x270"/>
+		<setting label="30004" type="select" id="uae4arm_leds_on_screen" values="on|off" default="on"/>
+		<setting label="30005" type="select" id="uae4arm_floppy_speed" values="100|200|400|800" default="100"/>
+		<setting label="30006" type="select" id="uae4arm_fastcopper" values="on|off" default="on"/>
+	</category>
+</settings>
