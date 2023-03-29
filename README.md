@@ -13,7 +13,7 @@ GPLv2
 
 ### Icon
 
-Help make me an icon!
+![Commodore - Amiga (UAE4ARM) icon](game.libretro.uae4arm/resources/icon.png)
 
 ### Fanart
 

@@ -49,5 +49,13 @@ msgid "Floppy speed"
 msgstr ""
 
 msgctxt "#30006"
+msgid "Line doubling (de-interlace)"
+msgstr ""
+
+msgctxt "#30007"
+msgid "whdload mode"
+msgstr ""
+
+msgctxt "#30008"
 msgid "fast copper"
 msgstr ""

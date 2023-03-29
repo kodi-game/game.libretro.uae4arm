@@ -1,1 +1,1 @@
-uae4arm https://github.com/libretro/uae4arm-libretro/archive/5cbf44464507ff9262c2403c9f8d5bc5957afd1a.tar.gz
+uae4arm https://github.com/Chips-fr/uae4arm-rpi/archive/177c2f0e892adf2603ada9b150e31beffe0f76c3.tar.gz
