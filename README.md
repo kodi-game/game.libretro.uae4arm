@@ -1,6 +1,3 @@
-[![Build Status](https://travis-ci.org/kodi-game/game.libretro.uae4arm.svg?branch=master)](https://travis-ci.org/kodi-game/game.libretro.uae4arm)
-[![Build Status](https://ci.appveyor.com/api/projects/status/github/kodi-game/game.libretro.uae4arm?svg=true)](https://ci.appveyor.com/project/kodi-game/game-libretro-uae4arm)
-
 # Commodore - Amiga (UAE4ARM)
 
 ### Description
