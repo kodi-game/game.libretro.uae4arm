@@ -24,8 +24,10 @@
 		<assets>
 			<icon>resources/icon.png</icon>
 		</assets>
+		<summary lang="da_DK">Commodore - Amiga (UAE4ARM)</summary>
 		<summary lang="en_GB">Commodore - Amiga (UAE4ARM)</summary>
 		<summary lang="es_ES">Commodore - Amiga (UAE4ARM)</summary>
+		<description lang="da_DK">UAE står for Ubiquitous Amiga Emulator. UAE4ARM er optimeret til Android og Raspberry Pi.</description>
 		<description lang="en_GB">UAE stands for the Ubiquitous Amiga Emulator. UAE4ARM is optimized for Android and the Raspberry Pi.</description>
 		<description lang="es_ES">UAE es el acróstico de Ubiquitous Amiga Emulator (Emulador de Amiga Ubicuo). UAE4ARM esta optimizado para Android y Raspberry Pi.</description>
 	</extension>
