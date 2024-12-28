@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?>
 <settings>
-	<category label="30000">
+	<category label="128">
 		<setting label="30001" type="select" id="uae4arm_model" values="Auto|A500|A600|A1200|CDTV|CD32" default="Auto"/>
 		<setting label="30002" type="select" id="uae4arm_fastmem" values="None|1 MB|2 MB|4 MB|8 MB" default="None"/>
 		<setting label="30003" type="select" id="uae4arm_resolution" values="768x270|320x240|320x256|320x262|640x240|640x256|640x262|640x270|768x270" default="768x270"/>
