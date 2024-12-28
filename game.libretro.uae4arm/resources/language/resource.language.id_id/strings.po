@@ -25,10 +25,6 @@ msgctxt "Addon Description"
 msgid "UAE stands for the Ubiquitous Amiga Emulator. UAE4ARM is optimized for Android and the Raspberry Pi."
 msgstr ""
 
-msgctxt "#30000"
-msgid "Settings"
-msgstr "Pengaturan"
-
 msgctxt "#30001"
 msgid "Model"
 msgstr ""
@@ -60,3 +56,7 @@ msgstr ""
 msgctxt "#30008"
 msgid "fast copper"
 msgstr ""
+
+#~ msgctxt "#30000"
+#~ msgid "Settings"
+#~ msgstr "Pengaturan"

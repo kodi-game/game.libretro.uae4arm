@@ -25,10 +25,6 @@ msgctxt "Addon Description"
 msgid "UAE stands for the Ubiquitous Amiga Emulator. UAE4ARM is optimized for Android and the Raspberry Pi."
 msgstr "UAE es el acróstico de Ubiquitous Amiga Emulator (Emulador de Amiga Ubicuo). UAE4ARM esta optimizado para Android y Raspberry Pi."
 
-msgctxt "#30000"
-msgid "Settings"
-msgstr "Ajustes"
-
 msgctxt "#30001"
 msgid "Model"
 msgstr "Modelo"
@@ -60,3 +56,7 @@ msgstr "modo whdload"
 msgctxt "#30008"
 msgid "fast copper"
 msgstr "cobre rápido"
+
+#~ msgctxt "#30000"
+#~ msgid "Settings"
+#~ msgstr "Ajustes"
