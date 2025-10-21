@@ -33,7 +33,7 @@
 		<description lang="da_DK">UAE står for Ubiquitous Amiga Emulator. UAE4ARM er optimeret til Android og Raspberry Pi.</description>
 		<description lang="en_GB">UAE stands for the Ubiquitous Amiga Emulator. UAE4ARM is optimized for Android and the Raspberry Pi.</description>
 		<description lang="es_ES">UAE es el acróstico de Ubiquitous Amiga Emulator (Emulador de Amiga Ubicuo). UAE4ARM esta optimizado para Android y Raspberry Pi.</description>
-		<description lang="ga">Seasann UAE don Ubiquitous Amiga Emulator. Tá UAE4ARM optamaithe d&apos;Android agus don Raspberry Pi.</description>
+		<description lang="ga">Seasann UAE don Ubiquitous Amiga Emulator. Tá UAE4ARM optamaithe d&amp;apos;Android agus don Raspberry Pi.</description>
 		<description lang="sv_SE">UAE står för Ubiquitous Amiga Emulator. UAE4ARM är optimerad för Android och Raspberry Pi.</description>
 		<description lang="zh_CN">UAE 即 Ubiquitous Amiga Emulator（无处不在的 Amiga 模拟器）。UAE4ARM 针对 Android 和树莓派进行了优化。</description>
 	</extension>
