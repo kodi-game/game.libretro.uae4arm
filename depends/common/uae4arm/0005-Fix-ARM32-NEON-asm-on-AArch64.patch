@@ -1,0 +1,63 @@
+From 4b5517a1ce9a419ac61250ee4e8c34f91d0a941a Mon Sep 17 00:00:00 2001
+From: Garrett Brown <themagnificentmrb@gmail.com>
+Date: Wed, 6 May 2026 21:27:06 -0700
+Subject: [PATCH 5/5] Fix ARM32 NEON asm on AArch64
+
+Do not use AArch32-only pkhbt inline assembly when compiling for AArch64.
+
+AArch64 defines __ARM_NEON, but pkhbt is an A32/T32 instruction and is
+not available in the A64 instruction set. Guard the optimized ARM32 NEON
+paths so AArch64 uses the portable fallback.
+---
+ src/include/drawing.h | 2 +-
+ src/linetoscr.cpp     | 8 ++++++--
+ 2 files changed, 7 insertions(+), 3 deletions(-)
+
+diff --git a/src/include/drawing.h b/src/include/drawing.h
+index 83cc80a..8dbf3b4 100644
+--- a/src/include/drawing.h
++++ b/src/include/drawing.h
+@@ -79,7 +79,7 @@ struct color_entry {
+ };
+ 
+ /* convert 24 bit AGA Amiga RGB to native color */
+-#if defined(ARMV6T2)
++#if defined(ARMV6T2) && !defined(__aarch64__)
+ STATIC_INLINE uae_u32 CONVERT_RGB(uae_u32 c)
+ {
+   uae_u32 ret;
+diff --git a/src/linetoscr.cpp b/src/linetoscr.cpp
+index 0f1ab99..14d7f64 100644
+--- a/src/linetoscr.cpp
++++ b/src/linetoscr.cpp
+@@ -9,10 +9,12 @@ STATIC_INLINE uae_u32 merge_words(uae_u32 val, uae_u32 val2)
+   __asm__ (
+ 			"bfi   %w[o], %w[d], #16, #16 \n\t"
+       : [o] "+r" (val) : [d] "r" (val2) );
+-#else
++#elif !defined(__aarch64__)
+   __asm__ (
+ 			"pkhbt   %[o], %[o], %[d], lsl #16 \n\t"
+       : [o] "+r" (val) : [d] "r" (val2) );
++#else
++  val = (val & 0xffff) | (val2 << 16);
+ #endif
+   return val;
+ }
+@@ -23,10 +25,12 @@ STATIC_INLINE uae_u32 double_word(uae_u32 val)
+   __asm__ (
+ 			"bfi   %w[o], %w[o], #16, #16 \n\t"
+       : [o] "+r" (val) );
+-#else
++#elif !defined(__aarch64__)
+   __asm__ (
+ 			"pkhbt   %[o], %[o], %[o], lsl #16 \n\t"
+       : [o] "+r" (val) );
++#else
++  val = (val & 0xffff) | (val << 16);
+ #endif
+   return val;
+ }
+-- 
+2.50.1 (Apple Git-155)
+
