@@ -1,0 +1,28 @@
+From afb4b0939e976d983ca5171f818e41b665e95cb9 Mon Sep 17 00:00:00 2001
+From: Garrett Brown <themagnificentmrb@gmail.com>
+Date: Wed, 6 May 2026 21:14:22 -0700
+Subject: [PATCH 4/4] Fix bundled mpeg2dec include path
+
+Add the bundled mpeg2dec directory to the libretro build include path.
+
+cd32_fmv.cpp includes mpeg2.h, but Makefile.libretro did not add the
+bundled deps/mpeg2dec directory to the compiler include path.
+---
+ Makefile.libretro | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/Makefile.libretro b/Makefile.libretro
+index 057570f..2995cdb 100644
+--- a/Makefile.libretro
++++ b/Makefile.libretro
+@@ -227,6 +227,7 @@ endif
+ DEFINES += -D__LIBRETRO__ $(DEFS) $(MORE_CFLAGS)
+ #-std=gnu99 
+ CFLAGS += $(DEFINES) -DINLINE="inline" $(CPU_FLAGS) -fexceptions -fpermissive
++CFLAGS += -I$(ROOT_DIR)/deps/mpeg2dec
+ 
+ include Makefile.common
+ 
+-- 
+2.50.1 (Apple Git-155)
+
