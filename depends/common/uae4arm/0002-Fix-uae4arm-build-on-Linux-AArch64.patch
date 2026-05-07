@@ -1,0 +1,29 @@
+From e18eeb06c5c22b0767914b98defba330956b7620 Mon Sep 17 00:00:00 2001
+From: Garrett Brown <themagnificentmrb@gmail.com>
+Date: Wed, 6 May 2026 20:51:46 -0700
+Subject: [PATCH 2/2] Fix uae4arm build on Linux AArch64
+
+The CPU_AARCH64 path emits invalid inline assembly on 64-bit ARM,
+mixing ARM32 r-registers with AArch64 x-registers.
+
+Keep AARCH64 set so ARMV6_ASSEMBLY is disabled, but avoid defining
+CPU_AARCH64 so the build uses the portable path instead.
+---
+ Makefile.libretro | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/Makefile.libretro b/Makefile.libretro
+index 2e50dfa..61f7e27 100644
+--- a/Makefile.libretro
++++ b/Makefile.libretro
+@@ -27,7 +27,6 @@ ifneq (,$(findstring unix,$(platform)))
+ 	endif
+ 	ifneq (,$(findstring aarch64,$(platform)))
+ 		AARCH64 = 1
+-		MORE_CFLAGS += -DCPU_AARCH64
+ 	endif
+ else ifneq (,$(findstring armeabi-v7a,$(platform)))
+ 	TARGET := $(TARGET_NAME)_libretro.so
+-- 
+2.50.1 (Apple Git-155)
+
