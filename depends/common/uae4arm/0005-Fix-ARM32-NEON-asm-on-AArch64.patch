@@ -1,4 +1,4 @@
-From 4b5517a1ce9a419ac61250ee4e8c34f91d0a941a Mon Sep 17 00:00:00 2001
+From 56e204175265a1f95649723d3ffa9af793b719c6 Mon Sep 17 00:00:00 2001
 From: Garrett Brown <themagnificentmrb@gmail.com>
 Date: Wed, 6 May 2026 21:27:06 -0700
 Subject: [PATCH 5/5] Fix ARM32 NEON asm on AArch64
@@ -9,9 +9,10 @@ AArch64 defines __ARM_NEON, but pkhbt is an A32/T32 instruction and is
 not available in the A64 instruction set. Guard the optimized ARM32 NEON
 paths so AArch64 uses the portable fallback.
 ---
- src/include/drawing.h | 2 +-
- src/linetoscr.cpp     | 8 ++++++--
- 2 files changed, 7 insertions(+), 3 deletions(-)
+ src/include/drawing.h              | 2 +-
+ src/linetoscr.cpp                  | 8 ++++++--
+ src/od-pandora/sigsegv_handler.cpp | 4 ++--
+ 3 files changed, 9 insertions(+), 5 deletions(-)
 
 diff --git a/src/include/drawing.h b/src/include/drawing.h
 index 83cc80a..8dbf3b4 100644
@@ -58,6 +59,28 @@ index 0f1ab99..14d7f64 100644
  #endif
    return val;
  }
+diff --git a/src/od-pandora/sigsegv_handler.cpp b/src/od-pandora/sigsegv_handler.cpp
+index a1eae12..4c8eee2 100644
+--- a/src/od-pandora/sigsegv_handler.cpp
++++ b/src/od-pandora/sigsegv_handler.cpp
+@@ -97,7 +97,7 @@ void init_max_signals(void)
+ }
+ 
+ 
+-#if defined(CPU_AARCH64)
++#if defined(CPU_AARCH64) || defined(__aarch64__)
+ 
+ #ifdef JIT
+ static int delete_trigger(blockinfo *bi, void *pc)
+@@ -451,7 +451,7 @@ void signal_buserror(int signum, siginfo_t* info, void*ptr)
+   exit(1);
+ }
+ 
+-#else
++#else /* !defined(CPU_AARCH64) && !defined(__aarch64__) */
+ 
+ enum {
+   ARM_REG_PC = 15,
 -- 
 2.50.1 (Apple Git-155)
 
