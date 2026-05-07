@@ -28,15 +28,24 @@ set(LIBRETRO_JNISONAME libretro${CMAKE_SHARED_LIBRARY_SUFFIX})
 
 if(CMAKE_BUILD_TYPE MATCHES Debug)
   set(LIBRETRO_DEBUG DEBUG=1)
+
+  # Disable LTO for Debug so DWARF survives and LLDB can step into the core
+  list(APPEND LIBRETRO_DEBUG LTO=)
 endif()
 
 if(CORE_SYSTEM_NAME STREQUAL windows)
   find_package(MinGW REQUIRED)
-  if(CPU STREQUAL arm64)
+
+  if(MINGW_MAKE MATCHES "/mingw64/")
     set(MSYSTEM MINGW64)
-  else()
+  elseif(MINGW_MAKE MATCHES "/mingw32/")
     set(MSYSTEM MINGW32)
+  else()
+    message(FATAL_ERROR "Unknown MinGW flavor in MINGW_MAKE: ${MINGW_MAKE}")
   endif()
+
+  message(STATUS "Using ${MSYSTEM} (from MINGW_MAKE='${MINGW_MAKE}')")
+
   set(BUILD_COMMAND ${MINGW_MAKE}
                     -C .
                     -f Makefile.libretro
@@ -45,16 +54,24 @@ if(CORE_SYSTEM_NAME STREQUAL windows)
                     GIT_VERSION=
                     MSYSTEM=${MSYSTEM}
                     platform=win
-                    platform=unix-aarch64)
+                    )
 elseif(CORE_SYSTEM_NAME STREQUAL linux)
+  if(CMAKE_SYSTEM_PROCESSOR STREQUAL arm64 OR CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
+    set(PLATFORM unix-aarch64)
+  elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^arm")
+    set(PLATFORM unix-neon)
+  else()
+    set(PLATFORM unix)
+  endif()
+
   set(BUILD_COMMAND $(MAKE)
                     -C .
                     -f Makefile.libretro
                     ${build_job_count}
                     ${LIBRETRO_DEBUG}
                     GIT_VERSION=
-                    platform=unix
-                    platform=unix-aarch64)
+                    platform=${PLATFORM}
+                    )
 elseif(CORE_SYSTEM_NAME STREQUAL osx)
   if(CPU STREQUAL arm64)
     set(ARCH arm)
@@ -72,7 +89,7 @@ elseif(CORE_SYSTEM_NAME STREQUAL osx)
                     LIBRETRO_APPLE_ISYSROOT=${CMAKE_OSX_SYSROOT}
                     LIBRETRO_APPLE_PLATFORM=${CPU}-apple-macos
                     platform=osx
-                    platform=unix-aarch64)
+                    )
 elseif(CORE_SYSTEM_NAME STREQUAL ios OR CORE_SYSTEM_NAME STREQUAL darwin_embedded)
   if(CORE_PLATFORM_NAME STREQUAL ios)
     set(LIBRETRO_SONAME uae4arm_libretro_ios${CMAKE_SHARED_LIBRARY_SUFFIX})
@@ -88,7 +105,7 @@ elseif(CORE_SYSTEM_NAME STREQUAL ios OR CORE_SYSTEM_NAME STREQUAL darwin_embedde
                                                   ${LIBRETRO_DEBUG}
                                                   GIT_VERSION=
                                                   platform=${PLATFORM}
-                                                  platform=unix-aarch64)
+                                                  )
   elseif(CORE_PLATFORM_NAME STREQUAL tvos)
     set(LIBRETRO_SONAME uae4arm_libretro_tvos${CMAKE_SHARED_LIBRARY_SUFFIX})
     set(BUILD_COMMAND IOSSDK=${CMAKE_OSX_SYSROOT} $(MAKE)
@@ -98,7 +115,7 @@ elseif(CORE_SYSTEM_NAME STREQUAL ios OR CORE_SYSTEM_NAME STREQUAL darwin_embedde
                                                   ${LIBRETRO_DEBUG}
                                                   GIT_VERSION=
                                                   platform=tvos-arm64
-                                                  platform=unix-aarch64)
+                                                  )
   endif()
 elseif(CORE_SYSTEM_NAME STREQUAL android)
   if(NOT NDKROOT)
@@ -121,7 +138,7 @@ elseif(CORE_SYSTEM_NAME STREQUAL android)
                                     NDK_LIBS_OUT=${PROJECT_SOURCE_DIR}/${LIBRETRO_BINARY_DIR}
                                     V=1
                                     V7NEONOPTIMIZATION=1
-                                    platform=unix-aarch64
+                                    
                     && cp ${PROJECT_SOURCE_DIR}/${LIBRETRO_BINARY_DIR}/${PLATFORM}/${LIBRETRO_JNISONAME} ${PROJECT_SOURCE_DIR}/${LIBRETRO_BINARY_DIR}/${LIBRETRO_SONAME})
 elseif(CORE_SYSTEM_NAME STREQUAL freebsd)
   set(BUILD_COMMAND $(MAKE)
@@ -131,7 +148,7 @@ elseif(CORE_SYSTEM_NAME STREQUAL freebsd)
                     ${LIBRETRO_DEBUG}
                     GIT_VERSION=
                     platform=unix
-                    platform=unix-aarch64)
+                    )
 else()
   message(FATAL_ERROR "${PROJECT_NAME} - Unknown system: ${CORE_SYSTEM_NAME}")
 endif()
