@@ -1,0 +1,85 @@
+From 0614bee59aacb04001a3678aca62a42b1dc98950 Mon Sep 17 00:00:00 2001
+From: Garrett Brown <themagnificentmrb@gmail.com>
+Date: Wed, 6 May 2026 21:40:09 -0700
+Subject: [PATCH 6/6] Disable ARM32 JIT on AArch64
+
+Do not build the ARM32 JIT for AArch64 libretro builds.
+
+The JIT code assumes 32-bit pointers and ARM32 signal-context fields such
+as arm_r0, arm_pc, and arm_lr. Linux AArch64 uses a different mcontext_t
+layout and the JIT is not portable to AArch64 as-is.
+
+Keep the existing JIT behavior for non-AArch64 builds.
+---
+ Makefile.common            | 7 ++++---
+ Makefile.libretro          | 6 +++++-
+ src/od-pandora/sysconfig.h | 2 ++
+ 3 files changed, 11 insertions(+), 4 deletions(-)
+
+diff --git a/Makefile.common b/Makefile.common
+index 1963c3a..8b46e6f 100755
+--- a/Makefile.common
++++ b/Makefile.common
+@@ -154,12 +154,14 @@ OBJS += $(EMU)/cpuemu_4.o
+ OBJS += $(EMU)/cpuemu_11.o
+ OBJS += $(EMU)/cpuemu_40.o
+ OBJS += $(EMU)/cpuemu_44.o
++ifneq ($(NO_JIT), 1)
+ OBJS += $(EMU)/jit/compemu.o
+ OBJS += $(EMU)/jit/compemu_fpp.o
+ OBJS += $(EMU)/jit/compstbl.o
++OBJS += $(EMU)/jit/compemu_support.o
++endif
+ 
+-OBJS += $(EMU)/jit/compemu_support.o \
+-	$(EMU)/md-pandora/support.o \
++OBJS += $(EMU)/md-pandora/support.o \
+ 	$(EMU)/od-pandora/bsdsocket_host.o \
+ 	$(EMU)/od-pandora/cda_play.o \
+ 	$(EMU)/od-pandora/charset.o \
+@@ -245,4 +247,3 @@ OBJS += \
+ 
+ SOURCES_C += 	 $(LIBRETRO)/libco/libco.c 
+ 
+-
+diff --git a/Makefile.libretro b/Makefile.libretro
+index 2995cdb..b04f108 100644
+--- a/Makefile.libretro
++++ b/Makefile.libretro
+@@ -203,6 +203,11 @@ ifneq ($(GIT_VERSION),)
+ 	MORE_CFLAGS += -DGIT_VERSION=$(GIT_VERSION)
+ endif
+ 
++ifeq ($(AARCH64), 1)
++	NO_JIT = 1
++	MORE_CFLAGS += -DNO_JIT
++endif
++
+ 
+ ifeq ($(DEBUG), 1)
+ 	CFLAGS += -O0 -g -DWITH_LOGGING
+@@ -272,4 +277,3 @@ clean:
+ 	(cd capsimg ; make clean )
+ 
+ .PHONY: clean
+-
+diff --git a/src/od-pandora/sysconfig.h b/src/od-pandora/sysconfig.h
+index b8626f7..7d904b4 100644
+--- a/src/od-pandora/sysconfig.h
++++ b/src/od-pandora/sysconfig.h
+@@ -13,10 +13,12 @@
+ #define FILESYS /* filesys emulation */
+ #define UAE_FILESYS_THREADS
+ #define AUTOCONFIG /* autoconfig support, fast ram, harddrives etc.. */
++#ifndef NO_JIT
+ #define JIT /* JIT compiler support */
+ #if defined(ARMV6T2) || defined(CPU_AARCH64)
+ #define USE_JIT_FPU
+ #endif
++#endif
+ /* #define NATMEM_OFFSET regs.natmem_offset */
+ /* #define CATWEASEL */ /* Catweasel MK2/3 support */
+ /* #define AHI */ /* AHI sound emulation */
+-- 
+2.50.1 (Apple Git-155)
+
