@@ -1,0 +1,815 @@
+commit 1c277952f6706bbcd62d38a7536269d2da7fe808
+Author: Garrett Brown <themagnificentmrb@gmail.com>
+Date:   Fri Aug 21 20:28:55 2026 -0700
+
+    Add patch to fix building for all Jenkins platforms
+
+diff --git a/depends/common/uae4arm/0001-Fix-UAE4ARM-ARM-platform-builds.patch b/depends/common/uae4arm/0001-Fix-UAE4ARM-ARM-platform-builds.patch
+new file mode 100644
+index 0000000..7f3abf1
+--- /dev/null
++++ b/depends/common/uae4arm/0001-Fix-UAE4ARM-ARM-platform-builds.patch
+@@ -0,0 +1,803 @@
++From 5b8d5b85566ba18f83eab2fdf8ae38a3758831cb Mon Sep 17 00:00:00 2001
++From: Garrett Brown <themagnificentmrb@gmail.com>
++Date: Fri, 21 Aug 2026 20:28:09 -0700
++Subject: [PATCH] Fix UAE4ARM ARM platform builds
++
++Build UAE4ARM only on the supported Android ARM and macOS ARM64
++platforms, and use its Makefile directly instead of the stale JNI path.
++
++Add ARMv7, AArch64 and macOS ARM64 platform handling, forward Kodi's
++compilers and deployment target, and apply the portability fixes needed
++by the older UAE4ARM source tree.
++
++Use Kodi's staged FLAC and mpg123 libraries when available, while
++preserving existing generator behavior for unrelated cores.
++---
++ Makefile.libretro                  |  45 ++++++++-
++ libretro/libco/aarch64.c           |   5 +-
++ src/blkdev_cdimage.cpp             |  16 +++-
++ src/expansion.cpp                  |   3 +-
++ src/newcpu_common.cpp              |   2 +-
++ src/od-pandora/aarch64_helper.s    |  78 ++++++++--------
++ src/od-pandora/bsdsocket_host.cpp  |   2 +-
++ src/od-pandora/mp3decoder.cpp      |   6 ++
++ src/od-pandora/pandora.cpp         |   4 +-
++ src/od-pandora/retro_gfx.cpp       |   2 +
++ src/od-pandora/sigsegv_handler.cpp | 143 ++++++++++++++++++++++++-----
++ src/od-pandora/sysconfig.h         |  10 +-
++ 12 files changed, 243 insertions(+), 73 deletions(-)
++
++diff --git a/Makefile.libretro b/Makefile.libretro
++index b2f0faf..5e27893 100644
++--- a/Makefile.libretro
+++++ b/Makefile.libretro
++@@ -179,6 +179,37 @@ else ifeq ($(platform), android)
++ 	LDFLAGS := -lz -lm -llog
++ 	SHARED :=  -Wl,--fix-cortex-a8 -shared -Wl,--version-script=$(CORE_DIR)/libretro/link.T -Wl,--no-undefined
++ 	PLATFLAGS += -DANDROID -DRETRO -DAND -DANDPORT -DARM_OPT_TEST=1
+++else ifneq (,$(filter android-armv7 android-aarch64,$(platform)))
+++	TARGET := $(TARGET_NAME)_libretro_android.so
+++	fpic := -fPIC
+++	LDFLAGS := -lz -lm -llog
+++	SHARED := -shared -Wl,--version-script=$(CORE_DIR)/libretro/link.T -Wl,--no-undefined
+++	PLATFLAGS += -DANDROID -DRETRO -DAND -DANDPORT -DARM_OPT_TEST=1 -DUAE4ARM_NO_EXTERNAL_CODECS
+++	ifeq ($(platform), android-aarch64)
+++		AARCH64 = 1
+++		MORE_CFLAGS += -DCPU_AARCH64
+++	else
+++		MORE_CFLAGS += -DARMV6T2 -DARM_HAS_DIV
+++		HAVE_NEON = 1
+++		USE_PICASSO96 = 1
+++		CPU_FLAGS += -marm
+++		SHARED += -Wl,--fix-cortex-a8
+++	endif
+++else ifeq ($(platform), osx-arm64)
+++	TARGET := $(TARGET_NAME)_libretro.dylib
+++	fpic := -fPIC
+++	LDFLAGS := -lz
+++	SHARED := -dynamiclib
+++	AARCH64 = 1
+++	MORE_CFLAGS += -DCPU_AARCH64
+++	CXXFLAGS += -std=gnu++11 -Wno-c++11-narrowing
+++	PLATFLAGS += -Dstat64=stat -Dftello64=ftello -Dfseeko64=fseeko -DUAE4ARM_NO_EXTERNAL_CODECS
+++	ifeq ($(CROSS_COMPILE), 1)
+++		TARGET_RULE := -target $(LIBRETRO_APPLE_PLATFORM) -isysroot $(LIBRETRO_APPLE_ISYSROOT)
+++		CFLAGS += $(TARGET_RULE) $(MINVERSION)
+++		ASFLAGS += $(TARGET_RULE) $(MINVERSION)
+++		LDFLAGS += $(TARGET_RULE) $(MINVERSION)
+++	endif
++ endif
++ 
++ # webOS
++@@ -211,7 +242,10 @@ ifneq ($(AARCH64), 1)
++     DEFS += -DARMV6_ASSEMBLY
++ endif
++ 
++-DEFS += -DPANDORA -DRASPBERRY -DWITH_INGAME_WARNING
+++DEFS += -DPANDORA -DWITH_INGAME_WARNING
+++ifneq ($(platform), osx-arm64)
+++	DEFS += -DRASPBERRY
+++endif
++ 
++ ifeq ($(USE_PICASSO96), 1)
++ 	DEFS += -DPICASSO96
++@@ -237,7 +271,11 @@ ASFLAGS += $(CPU_FLAGS)
++ 
++ all: $(TARGET)
++ 
+++ifneq (,$(filter android-armv7 android-aarch64 osx-arm64,$(platform)))
+++CAPS =
+++else
++ CAPS = capsimg.so
+++endif
++ 
++ capsimg.so: capsimg
++ 	(cd capsimg ; ./bootstrap ; ./configure --host=arm ; $(MAKE) ; cp capsimg.so ../ )
++@@ -252,10 +290,10 @@ $(EMU)/od-pandora/arm_helper.o: $(EMU)/od-pandora/arm_helper.s
++ 	$(CXX) $(ASFLAGS) -Wall -o $(EMU)/od-pandora/arm_helper.o -c $(EMU)/od-pandora/arm_helper.s
++ 
++ $(EMU)/od-pandora/aarch64_helper.o: $(EMU)/od-pandora/aarch64_helper.s
++-	$(CXX) $(ASFLAGS) -Wall -o $(EMU)/od-pandora/aarch64_helper.o -c $(EMU)/od-pandora/aarch64_helper.s
+++	$(CXX) $(ASFLAGS) -Wall -x assembler-with-cpp -o $(EMU)/od-pandora/aarch64_helper.o -c $(EMU)/od-pandora/aarch64_helper.s
++ 
++ %.o: %.cpp
++-	$(CXX) $(fpic) $(CFLAGS) $(PLATFLAGS) $(INCDIRS) -c -o $@ $<
+++	$(CXX) $(fpic) $(CFLAGS) $(CXXFLAGS) $(PLATFLAGS) $(INCDIRS) -c -o $@ $<
++ 
++ %.o: %.c
++ 	$(CC) $(fpic) $(CFLAGS) $(PLATFLAGS) $(INCDIRS) -c -o $@ $<
++@@ -268,4 +306,3 @@ clean:
++ 	(cd capsimg ; make clean )
++ 
++ .PHONY: clean
++-
++diff --git a/libretro/libco/aarch64.c b/libretro/libco/aarch64.c
++index 3c3b2f8..4d237cd 100644
++--- a/libretro/libco/aarch64.c
+++++ b/libretro/libco/aarch64.c
++@@ -11,7 +11,7 @@
++ #include <string.h>
++ #include <stdint.h>
++ 
++-#ifndef IOS
+++#if !defined(IOS) && !defined(__APPLE__)
++ #include <malloc.h>
++ #endif
++ 
++@@ -68,7 +68,7 @@ cothread_t co_create(unsigned int size, void (*entrypoint)(void))
++ {
++    size = (size + 1023) & ~1023;
++    cothread_t handle = 0;
++-#if HAVE_POSIX_MEMALIGN >= 1
+++#if defined(__APPLE__) || HAVE_POSIX_MEMALIGN >= 1
++    if (posix_memalign(&handle, 1024, size + 512) < 0)
++       return 0;
++ #else
++@@ -126,4 +126,3 @@ void co_switch(cothread_t handle)
++ #ifdef __cplusplus
++ }
++ #endif
++-
++diff --git a/src/blkdev_cdimage.cpp b/src/blkdev_cdimage.cpp
++index 174dfa2..78cc924 100644
++--- a/src/blkdev_cdimage.cpp
+++++ b/src/blkdev_cdimage.cpp
++@@ -30,8 +30,10 @@
++ #include "uae.h"
++ #include "uae/cdrom.h"
++ 
+++#ifndef UAE4ARM_NO_EXTERNAL_CODECS
++ #define FLAC__NO_DLL
++ #include "FLAC/stream_decoder.h"
+++#endif
++ 
++ #ifdef WITH_CHD
++ #include "archivers/chd/chdtypes.h"
++@@ -187,6 +189,7 @@ static int do_read (struct cdunit *cdu, struct cdtoc *t, uae_u8 *data, int secto
++ 	return 0;
++ }
++ 
+++#ifndef UAE4ARM_NO_EXTERNAL_CODECS
++ // WOHOO, library that supports virtual file access functions. Perfect!
++ static void flac_metadata_callback (const FLAC__StreamDecoder *decoder, const FLAC__StreamMetadata *metadata, void *client_data)
++ {
++@@ -276,6 +279,17 @@ static uae_u8 *flac_get_data (struct cdtoc *t)
++ 	}
++ 	return t->data;
++ }
+++#else
+++static void flac_get_size (struct cdtoc *t)
+++{
+++	t->filesize = 0;
+++}
+++
+++static uae_u8 *flac_get_data (struct cdtoc *t)
+++{
+++	return NULL;
+++}
+++#endif
++ 
++ void sub_to_interleaved (const uae_u8 *s, uae_u8 *d)
++ {
++@@ -455,7 +469,7 @@ static void next_cd_audio_buffer_callback(int bufnum, void *params)
++ }
++ #endif
++ 
++-static int *cdda_play_func (void *v)
+++static int cdda_play_func (void *v)
++ {
++ 	int cdda_pos;
++ 	int bufnum;
++diff --git a/src/expansion.cpp b/src/expansion.cpp
++index a46822c..83fb5e2 100644
++--- a/src/expansion.cpp
+++++ b/src/expansion.cpp
++@@ -2760,8 +2760,7 @@ const struct expansionromtype expansionroms[] = {
++ 		NULL, cdtvsram_init, NULL, NULL, ROMTYPE_CDTVSRAM | ROMTYPE_NOT, 0, 0, BOARD_NONAUTOCONFIG_BEFORE, true,
++ 		NULL, 0,
++ 		false, EXPANSIONTYPE_INTERNAL,
++-		0, 0, 0, false, NULL,
++-		false, 0, cdtvsram_settings
+++		cdtvsram_settings
++ 	},
++ 	//{
++ 	//	_T("cdtvcr"), _T("CDTV-CR"), _T("Commodore"),
++diff --git a/src/newcpu_common.cpp b/src/newcpu_common.cpp
++index b1af74d..a2dee3f 100644
++--- a/src/newcpu_common.cpp
+++++ b/src/newcpu_common.cpp
++@@ -4,7 +4,7 @@
++ #include "memory.h"
++ #include "newcpu.h"
++ 
++-static int movec_illg (int regno)
+++int movec_illg (int regno)
++ {
++   int regno2 = regno & 0x7ff;
++ 
++diff --git a/src/od-pandora/aarch64_helper.s b/src/od-pandora/aarch64_helper.s
++index 93322b6..d470505 100644
++--- a/src/od-pandora/aarch64_helper.s
+++++ b/src/od-pandora/aarch64_helper.s
++@@ -1,20 +1,26 @@
++ // Some functions and tests to increase performance in drawing.cpp and custom.cpp
++ 
+++#ifdef __APPLE__
+++#define C_SYMBOL(name) _##name
+++#else
+++#define C_SYMBOL(name) name
+++#endif
+++
++ //.arm
++ 
++-.global save_host_fp_regs
++-.global restore_host_fp_regs
++-.global copy_screen_8bit
++-.global copy_screen_16bit_swap
++-.global copy_screen_32bit_to_16bit
++-.global ARM_doline_n1
++-.global NEON_doline_n2
++-.global NEON_doline_n3
++-.global NEON_doline_n4
++-.global NEON_doline_n5
++-.global NEON_doline_n6
++-.global NEON_doline_n7
++-.global NEON_doline_n8
+++.global C_SYMBOL(save_host_fp_regs)
+++.global C_SYMBOL(restore_host_fp_regs)
+++.global C_SYMBOL(copy_screen_8bit)
+++.global C_SYMBOL(copy_screen_16bit_swap)
+++.global C_SYMBOL(copy_screen_32bit_to_16bit)
+++.global C_SYMBOL(ARM_doline_n1)
+++.global C_SYMBOL(NEON_doline_n2)
+++.global C_SYMBOL(NEON_doline_n3)
+++.global C_SYMBOL(NEON_doline_n4)
+++.global C_SYMBOL(NEON_doline_n5)
+++.global C_SYMBOL(NEON_doline_n6)
+++.global C_SYMBOL(NEON_doline_n7)
+++.global C_SYMBOL(NEON_doline_n8)
++ 
++ .text
++ 
++@@ -23,7 +29,7 @@
++ //----------------------------------------------------------------
++ // save_host_fp_regs
++ //----------------------------------------------------------------
++-save_host_fp_regs:
+++C_SYMBOL(save_host_fp_regs):
++   st4  {v7.2D-v10.2D}, [x0], #64
++   st4  {v11.2D-v14.2D}, [x0], #64
++   st1  {v15.2D}, [x0], #16
++@@ -32,7 +38,7 @@ save_host_fp_regs:
++ //----------------------------------------------------------------
++ // restore_host_fp_regs
++ //----------------------------------------------------------------
++-restore_host_fp_regs:
+++C_SYMBOL(restore_host_fp_regs):
++   ld4  {v7.2D-v10.2D}, [x0], #64
++   ld4  {v11.2D-v14.2D}, [x0], #64
++   ld1  {v15.2D}, [x0], #16
++@@ -50,7 +56,7 @@ restore_host_fp_regs:
++ // void copy_screen_8bit(uae_u8 *dst, uae_u8 *src, int bytes, uae_u32 *clut);
++ //
++ //----------------------------------------------------------------
++-copy_screen_8bit:
+++C_SYMBOL(copy_screen_8bit):
++   mov       x7, #64
++ copy_screen_8bit_loop:
++   ldrsw     x4, [x1], #4
++@@ -69,7 +75,7 @@ copy_screen_8bit_loop:
++   strh      w6, [x0], #2
++   bgt       copy_screen_8bit_loop
++   subs      x2, x2, #64
++-  bgt       copy_screen_8bit
+++  bgt       C_SYMBOL(copy_screen_8bit)
++   ret
++   
++ 
++@@ -83,7 +89,7 @@ copy_screen_8bit_loop:
++ // void copy_screen_16bit_swap(uae_u8 *dst, uae_u8 *src, int bytes);
++ //
++ //----------------------------------------------------------------
++-copy_screen_16bit_swap:
+++C_SYMBOL(copy_screen_16bit_swap):
++   ld4       {v0.2D-v3.2D}, [x1], #64
++   rev16     v0.16b, v0.16b
++   rev16     v1.16b, v1.16b
++@@ -91,7 +97,7 @@ copy_screen_16bit_swap:
++   rev16     v3.16b, v3.16b
++   subs      w2, w2, #64
++   st4       {v0.2D-v3.2D}, [x0], #64
++-  bne copy_screen_16bit_swap
+++  bne C_SYMBOL(copy_screen_16bit_swap)
++   ret
++   
++ 
++@@ -105,7 +111,7 @@ copy_screen_16bit_swap:
++ // void copy_screen_32bit_to_16bit(uae_u8 *dst, uae_u8 *src, int bytes);
++ //
++ //----------------------------------------------------------------
++-copy_screen_32bit_to_16bit:
+++C_SYMBOL(copy_screen_32bit_to_16bit):
++   ldr       x3, =Masks_rgb
++   ld2r      {v0.4S-v1.4S}, [x3]
++ copy_screen_32bit_to_16bit_loop:
++@@ -134,10 +140,10 @@ copy_screen_32bit_to_16bit_loop:
++ // void ARM_doline_n1(uae_u32 *pixels, int wordcount, int lineno);
++ //
++ //----------------------------------------------------------------
++-ARM_doline_n1:
+++C_SYMBOL(ARM_doline_n1):
++   mov       x3, #1600
++   mul       x2, x2, x3
++-  ldr       x3, =line_data
+++  ldr       x3, =C_SYMBOL(line_data)
++   add       x3, x3, x2           // real_bplpt[0]
++ 
++   ldr       x10, =Lookup_doline_n1
++@@ -191,11 +197,11 @@ ARM_doline_n1_loop:
++ // void NEON_doline_n2(uae_u32 *pixels, int wordcount, int lineno);
++ //
++ //----------------------------------------------------------------
++-NEON_doline_n2:
+++C_SYMBOL(NEON_doline_n2):
++ 
++   mov       x3, #1600
++   mul       x2, x2, x3
++-  ldr       x3, =line_data
+++  ldr       x3, =C_SYMBOL(line_data)
++   add       x2, x3, x2           // real_bplpt[0]
++   add       x3, x2, #200
++   
++@@ -271,10 +277,10 @@ NEON_doline_n2_exit:
++ // void NEON_doline_n3(uae_u32 *pixels, int wordcount, int lineno);
++ //
++ //----------------------------------------------------------------
++-NEON_doline_n3:
+++C_SYMBOL(NEON_doline_n3):
++   mov       x3, #1600
++   mul       x2, x2, x3
++-  ldr       x3, =line_data
+++  ldr       x3, =C_SYMBOL(line_data)
++   add       x2, x3, x2           // real_bplpt[0]
++   add       x3, x2, #200
++   add       x4, x3, #200
++@@ -366,10 +372,10 @@ NEON_doline_n3_exit:
++ // void NEON_doline_n4(uae_u32 *pixels, int wordcount, int lineno);
++ //
++ //----------------------------------------------------------------
++-NEON_doline_n4:
+++C_SYMBOL(NEON_doline_n4):
++   mov       x3, #1600
++   mul       x2, x2, x3
++-  ldr       x3, =line_data
+++  ldr       x3, =C_SYMBOL(line_data)
++   add       x2, x3, x2           // real_bplpt[0]
++   add       x3, x2, #200
++   add       x4, x3, #200
++@@ -463,10 +469,10 @@ NEON_doline_n4_exit:
++ // void NEON_doline_n5(uae_u32 *pixels, int wordcount, int lineno);
++ //
++ //----------------------------------------------------------------
++-NEON_doline_n5:
+++C_SYMBOL(NEON_doline_n5):
++   mov       x3, #1600
++   mul       x2, x2, x3
++-  ldr       x3, =line_data
+++  ldr       x3, =C_SYMBOL(line_data)
++   add       x2, x3, x2           // real_bplpt[0]
++   add       x3, x2, #200
++   add       x4, x3, #200
++@@ -595,10 +601,10 @@ NEON_doline_n5_exit:
++ // void NEON_doline_n6(uae_u32 *pixels, int wordcount, int lineno);
++ //
++ //----------------------------------------------------------------
++-NEON_doline_n6:
+++C_SYMBOL(NEON_doline_n6):
++   mov       x3, #1600
++   mul       x2, x2, x3
++-  ldr       x3, =line_data
+++  ldr       x3, =C_SYMBOL(line_data)
++   add       x2, x3, x2           // real_bplpt[0]
++   add       x3, x2, #200
++   add       x4, x3, #200
++@@ -729,10 +735,10 @@ NEON_doline_n6_exit:
++ // void NEON_doline_n7(uae_u32 *pixels, int wordcount, int lineno);
++ //
++ //----------------------------------------------------------------
++-NEON_doline_n7:
+++C_SYMBOL(NEON_doline_n7):
++   mov       x3, #1600
++   mul       x2, x2, x3
++-  ldr       x3, =line_data
+++  ldr       x3, =C_SYMBOL(line_data)
++   add       x2, x3, x2           // real_bplpt[0]
++   add       x3, x2, #200
++   add       x4, x3, #200
++@@ -870,10 +876,10 @@ NEON_doline_n7_exit:
++ // void NEON_doline_n8(uae_u32 *pixels, int wordcount, int lineno);
++ //
++ //----------------------------------------------------------------
++-NEON_doline_n8:
+++C_SYMBOL(NEON_doline_n8):
++   mov       x3, #1600
++   mul       x2, x2, x3
++-  ldr       x3, =line_data
+++  ldr       x3, =C_SYMBOL(line_data)
++   add       x2, x3, x2           // real_bplpt[0]
++   add       x3, x2, #200
++   add       x4, x3, #200
++diff --git a/src/od-pandora/bsdsocket_host.cpp b/src/od-pandora/bsdsocket_host.cpp
++index 626855e..b8a552b 100644
++--- a/src/od-pandora/bsdsocket_host.cpp
+++++ b/src/od-pandora/bsdsocket_host.cpp
++@@ -1277,7 +1277,7 @@ uae_u32 host_bind (TrapContext *ctx, SB, uae_u32 sd, uae_u32 name, uae_u32 namel
++   DEBUG_LOG ("bind(%u[%d], 0x%x, %u) -> ", sd, s, name, namelen);
++   copysockaddr_a2n (ctx, &addr, name, namelen);
++   printSockAddr (&addr);
++-  if ((success = bind (s, reinterpret_cast<struct sockaddr *>(&addr), len)) != 0) {
+++  if ((success = ::bind (s, reinterpret_cast<struct sockaddr *>(&addr), len)) != 0) {
++ 		SETERRNO;
++ 		DEBUG_LOG ("failed (%d)\n",sb->sb_errno);
++   } else {
++diff --git a/src/od-pandora/mp3decoder.cpp b/src/od-pandora/mp3decoder.cpp
++index d8fa14e..854112a 100644
++--- a/src/od-pandora/mp3decoder.cpp
+++++ b/src/od-pandora/mp3decoder.cpp
++@@ -4,7 +4,9 @@
++ #include "zfile.h"
++ #include "mp3decoder.h"
++ #include "cda_play.h"
+++#ifndef UAE4ARM_NO_EXTERNAL_CODECS
++ #include <mpg123.h>
+++#endif
++ 
++ 
++ #define MP3_BLOCK_SIZE 522
++@@ -38,6 +40,9 @@ mp3decoder::mp3decoder()
++ 
++ uae_u8 *mp3decoder::get (struct zfile *zf, uae_u8 *outbuf, int maxsize) 
++ {
+++#ifdef UAE4ARM_NO_EXTERNAL_CODECS
+++	return NULL;
+++#else
++ 	int outoffset = 0;
++ 	unsigned char mp3buf[MP3_BLOCK_SIZE];
++   unsigned char rawbuf[RAW_BLOCK_SIZE];
++@@ -104,6 +109,7 @@ uae_u8 *mp3decoder::get (struct zfile *zf, uae_u8 *outbuf, int maxsize)
++   mpg123_exit();
++     
++   return outbuf;
+++#endif
++ }
++ 
++ uae_u32 mp3decoder::getsize (struct zfile *zf) 
++diff --git a/src/od-pandora/pandora.cpp b/src/od-pandora/pandora.cpp
++index 92c6bd0..7b30b9b 100644
++--- a/src/od-pandora/pandora.cpp
+++++ b/src/od-pandora/pandora.cpp
++@@ -10,7 +10,9 @@
++ #include <vector>
++ #include <stdlib.h>
++ #include <stdarg.h>
+++#ifndef __APPLE__
++ #include <asm/sigcontext.h>
+++#endif
++ #include <signal.h>
++ #include <dlfcn.h>
++ #include <execinfo.h>
++@@ -270,7 +272,7 @@ void target_quit (void)
++ }
++ 
++ 
++-static void fix_apmodes(struct uae_prefs *p)
+++void fix_apmodes(struct uae_prefs *p)
++ {
++   if(p->ntscmode)
++   {
++diff --git a/src/od-pandora/retro_gfx.cpp b/src/od-pandora/retro_gfx.cpp
++index 530d8dc..a871d14 100644
++--- a/src/od-pandora/retro_gfx.cpp
+++++ b/src/od-pandora/retro_gfx.cpp
++@@ -24,8 +24,10 @@
++ #include <android/log.h>
++ #endif
++ 
+++#ifndef __APPLE__
++ #include <linux/fb.h>
++ #include <sys/ioctl.h>
+++#endif
++ 
++ extern unsigned int retrow,retroh;
++ 
++diff --git a/src/od-pandora/sigsegv_handler.cpp b/src/od-pandora/sigsegv_handler.cpp
++index a1eae12..ca79204 100644
++--- a/src/od-pandora/sigsegv_handler.cpp
+++++ b/src/od-pandora/sigsegv_handler.cpp
++@@ -36,7 +36,9 @@
++ #endif
++ #include "uae.h"
++ 
+++#ifndef __APPLE__
++ #include <asm/sigcontext.h>
+++#endif
++ #include <signal.h>
++ #include <dlfcn.h>
++ #include <execinfo.h>
++@@ -99,6 +101,103 @@ void init_max_signals(void)
++ 
++ #if defined(CPU_AARCH64)
++ 
+++#ifdef __APPLE__
+++typedef mcontext_t uae_mcontext_t;
+++
+++static uae_mcontext_t get_mcontext(ucontext_t *ucontext)
+++{
+++  return ucontext->uc_mcontext;
+++}
+++
+++static uintptr_t get_pc(uae_mcontext_t context)
+++{
+++  return context->__ss.__pc;
+++}
+++
+++static void advance_pc(uae_mcontext_t context)
+++{
+++  context->__ss.__pc += 4;
+++}
+++
+++static uae_u64 get_register(uae_mcontext_t context, int reg)
+++{
+++  if (reg < 29)
+++    return context->__ss.__x[reg];
+++  if (reg == 29)
+++    return context->__ss.__fp;
+++  if (reg == 30)
+++    return context->__ss.__lr;
+++  return 0;
+++}
+++
+++static void set_register(uae_mcontext_t context, int reg, uae_u64 value)
+++{
+++  if (reg < 29)
+++    context->__ss.__x[reg] = value;
+++  else if (reg == 29)
+++    context->__ss.__fp = value;
+++  else if (reg == 30)
+++    context->__ss.__lr = value;
+++}
+++
+++static uintptr_t get_sp(uae_mcontext_t context)
+++{
+++  return context->__ss.__sp;
+++}
+++
+++static uintptr_t get_fault_address(uae_mcontext_t context)
+++{
+++  return context->__es.__far;
+++}
+++
+++static unsigned int get_pstate(uae_mcontext_t context)
+++{
+++  return context->__ss.__cpsr;
+++}
+++#else
+++typedef mcontext_t *uae_mcontext_t;
+++
+++static uae_mcontext_t get_mcontext(ucontext_t *ucontext)
+++{
+++  return &ucontext->uc_mcontext;
+++}
+++
+++static uintptr_t get_pc(uae_mcontext_t context)
+++{
+++  return context->pc;
+++}
+++
+++static void advance_pc(uae_mcontext_t context)
+++{
+++  context->pc += 4;
+++}
+++
+++static uae_u64 get_register(uae_mcontext_t context, int reg)
+++{
+++  return context->regs[reg];
+++}
+++
+++static void set_register(uae_mcontext_t context, int reg, uae_u64 value)
+++{
+++  context->regs[reg] = value;
+++}
+++
+++static uintptr_t get_sp(uae_mcontext_t context)
+++{
+++  return context->sp;
+++}
+++
+++static uintptr_t get_fault_address(uae_mcontext_t context)
+++{
+++  return context->fault_address;
+++}
+++
+++static unsigned int get_pstate(uae_mcontext_t context)
+++{
+++  return context->pstate;
+++}
+++#endif
+++
++ #ifdef JIT
++ static int delete_trigger(blockinfo *bi, void *pc)
++ {
++@@ -121,10 +220,10 @@ static int delete_trigger(blockinfo *bi, void *pc)
++ 
++ typedef uae_u64 uintptr;
++ 
++-static int handle_exception(mcontext_t *sigcont, long fault_addr)  
+++static int handle_exception(uae_mcontext_t sigcont, long fault_addr)
++ {
++   int handled = HANDLE_EXCEPTION_NONE;
++-	uintptr fault_pc = (uintptr)sigcont->pc;
+++	uintptr fault_pc = (uintptr)get_pc(sigcont);
++   
++ 	if (fault_pc == 0) {
++     output_log(_T("PC is NULL.\n"));
++@@ -162,7 +261,7 @@ static int handle_exception(mcontext_t *sigcont, long fault_addr)
++     // Check for stupid RAM detection of kickstart
++     if(a3000lmem_bank.allocated_size > 0 && amiga_addr >= a3000lmem_bank.start - 0x00100000 && amiga_addr < a3000lmem_bank.start - 0x00100000 + 8) {
++       output_log(_T("  Stupid kickstart detection for size of ramsey_low at 0x%08x.\n"), amiga_addr);
++-      sigcont->pc += 4;
+++      advance_pc(sigcont);
++       handled = HANDLE_EXCEPTION_A4000RAM;
++       break;
++     }
++@@ -170,7 +269,7 @@ static int handle_exception(mcontext_t *sigcont, long fault_addr)
++     // Check for stupid RAM detection of kickstart
++     if(a3000hmem_bank.allocated_size > 0 && amiga_addr >= a3000hmem_bank.start + a3000hmem_bank.allocated_size && amiga_addr < a3000hmem_bank.start + a3000hmem_bank.allocated_size + 8) {
++       output_log(_T("  Stupid kickstart detection for size of ramsey_high at 0x%08x.\n"), amiga_addr);
++-      sigcont->pc += 4;
+++      advance_pc(sigcont);
++       handled = HANDLE_EXCEPTION_A4000RAM;
++       break;
++     }
++@@ -237,34 +336,34 @@ extern void disam_range(void *start, void *stop);
++ 
++     	if (transfer_type == TYPE_LOAD) {
++     	  // Perform load via indirect memory call
++-    	  uae_u32 oldval = sigcont->regs[rd];
+++	  uae_u32 oldval = get_register(sigcont, rd);
++     		switch(transfer_size) {
++     		  case SIZE_BYTE:
++-    		    sigcont->regs[rd] = (uae_u8)get_byte(amiga_addr);
+++		    set_register(sigcont, rd, (uae_u8)get_byte(amiga_addr));
++     		    break;
++ 
++     		  case SIZE_WORD:
++-    		    sigcont->regs[rd] = do_byteswap_16((uae_u16)get_word(amiga_addr));
+++		    set_register(sigcont, rd, do_byteswap_16((uae_u16)get_word(amiga_addr)));
++     		    break;
++ 
++     		  case SIZE_INT:
++-    		    sigcont->regs[rd] = do_byteswap_32(get_long(amiga_addr));
+++		    set_register(sigcont, rd, do_byteswap_32(get_long(amiga_addr)));
++     		    break;
++     		}
++-    	  output_log(_T("New value in x%d: 0x%08x (old: 0x%08x)\n"), rd, sigcont->regs[rd], oldval);
+++	  output_log(_T("New value in x%d: 0x%08x (old: 0x%08x)\n"), rd, get_register(sigcont, rd), oldval);
++     	} else {
++     	  // Perform store via indirect memory call
++     		switch(transfer_size) {
++     		  case SIZE_BYTE: {
++-    		    put_byte(amiga_addr, sigcont->regs[rd]);
+++		    put_byte(amiga_addr, get_register(sigcont, rd));
++     		    break;
++     		  }
++     		  case SIZE_WORD: {
++-    		    put_word(amiga_addr, do_byteswap_16(sigcont->regs[rd]));
+++		    put_word(amiga_addr, do_byteswap_16(get_register(sigcont, rd)));
++     		    break;
++     		  }
++     		  case SIZE_INT: {
++-    		    put_long(amiga_addr, do_byteswap_32(sigcont->regs[rd]));
+++		    put_long(amiga_addr, do_byteswap_32(get_register(sigcont, rd)));
++     		    break;
++     		  }
++     		}
++@@ -272,7 +371,7 @@ extern void disam_range(void *start, void *stop);
++     	}
++      	
++      	// Go to next instruction
++-      sigcont->pc += 4;
+++      advance_pc(sigcont);
++     	handled = HANDLE_EXCEPTION_OK;
++     	
++     	if (!delete_trigger(active, (void*)fault_pc)) {
++@@ -302,9 +401,8 @@ void signal_segv(int signum, siginfo_t* info, void*ptr)
++ 	trace_end();
++ #endif
++ 
++-	mcontext_t *context = &(ucontext->uc_mcontext);
+++	uae_mcontext_t context = get_mcontext(ucontext);
++ 
++-	unsigned long long *regs = context->regs;
++ 	uintptr addr = (uintptr)info->si_addr;
++ 
++   handled = handle_exception(context, addr);
++@@ -396,9 +494,8 @@ void signal_buserror(int signum, siginfo_t* info, void*ptr)
++ 	trace_end();
++ #endif
++ 
++-	mcontext_t *context = &(ucontext->uc_mcontext);
+++	uae_mcontext_t context = get_mcontext(ucontext);
++ 
++-	unsigned long long *regs = context->regs;
++ 	uintptr_t addr = (uintptr_t)info->si_addr;
++ 
++   output_log(_T("info.si_signo = %d\n"), signum);
++@@ -409,13 +506,13 @@ void signal_buserror(int signum, siginfo_t* info, void*ptr)
++     output_log(_T("       value = 0x%08x\n"), *((uae_u32*)(info->si_addr)));
++ 
++   for(int i=0; i < 31; ++i)
++-    output_log(_T("x%02d  = 0x%016lx\n"), i, ucontext->uc_mcontext.regs[i]);
++-  output_log(_T("SP  = 0x%016lx\n"), ucontext->uc_mcontext.sp);
++-  output_log(_T("PC  = 0x%016lx\n"), ucontext->uc_mcontext.pc);
++-  output_log(_T("Fault Address = 0x%016lx\n"), ucontext->uc_mcontext.fault_address);
++-  output_log(_T("pstate  = 0x%016lx\n"), ucontext->uc_mcontext.pstate);
+++    output_log(_T("x%02d  = 0x%016lx\n"), i, get_register(context, i));
+++  output_log(_T("SP  = 0x%016lx\n"), get_sp(context));
+++  output_log(_T("PC  = 0x%016lx\n"), get_pc(context));
+++  output_log(_T("Fault Address = 0x%016lx\n"), get_fault_address(context));
+++  output_log(_T("pstate  = 0x%016lx\n"), get_pstate(context));
++ 
++-  void *getaddr = (void *)ucontext->uc_mcontext.regs[30];
+++  void *getaddr = (void *)get_register(context, 30);
++   if(dladdr(getaddr, &dlinfo))
++ 	  output_log(_T("LR - 0x%08X: <%s> (%s)\n"), getaddr, dlinfo.dli_sname, dlinfo.dli_fname);
++   else
++diff --git a/src/od-pandora/sysconfig.h b/src/od-pandora/sysconfig.h
++index b8626f7..566e6d4 100644
++--- a/src/od-pandora/sysconfig.h
+++++ b/src/od-pandora/sysconfig.h
++@@ -224,7 +224,9 @@ typedef int32_t uae_atomic;
++ 
++ /* Define if statfs takes 2 args and struct statfs has a field named f_bsize.
++    [4.3BSD, SunOS 4, HP-UX, AIX PS/2]  */
++-/* #define STAT_STATFS2_BSIZE 1 */
+++#ifdef __APPLE__
+++#define STAT_STATFS2_BSIZE 1
+++#endif
++ 
++ /* Define if statfs takes 2 args and struct statfs has a field named f_fsize.
++    [4.4BSD, NetBSD]  */
++@@ -238,7 +240,9 @@ typedef int32_t uae_atomic;
++ /* #undef STAT_STATFS4 */
++ 
++ /* Define if there is a function named statvfs.  [SVR4]  */
+++#ifndef __APPLE__
++ #define STAT_STATVFS
+++#endif
++ 
++ /* Define if the block counts reported by statfs may be truncated to 2GB
++    and the correct values may be stored in the f_spare array.
++@@ -467,7 +471,9 @@ typedef int32_t uae_atomic;
++ #define HAVE_SYS_STAT_H 1
++ 
++ /* Define if you have the <sys/statfs.h> header file.  */
+++#ifndef __APPLE__
++ #define HAVE_SYS_STATFS_H 1
+++#endif
++ 
++ /* Define if you have the <sys/statvfs.h> header file.  */
++ /* #undef HAVE_SYS_STATVFS_H */
++@@ -485,7 +491,9 @@ typedef int32_t uae_atomic;
++ /* #undef HAVE_SYS_UTIME_H */
++ 
++ /* Define if you have the <sys/vfs.h> header file.  */
+++#ifndef __APPLE__
++ #define HAVE_SYS_VFS_H 1
+++#endif
++ 
++ /* Define if you have the <unistd.h> header file.  */
++ #define HAVE_UNISTD_H 1
++-- 
++2.43.0
++
