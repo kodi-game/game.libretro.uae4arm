@@ -1,4 +1,4 @@
-From 8ead3e0c9f78be194e7bcb836fbdf17f88f8ce68 Mon Sep 17 00:00:00 2001
+From eeef9e86100420a1de5d3119a4bbca6569f2b598 Mon Sep 17 00:00:00 2001
 From: Garrett Brown <themagnificentmrb@gmail.com>
 Date: Fri, 21 Aug 2026 22:27:31 -0700
 Subject: [PATCH] Fix UAE4ARM ARM platform builds
@@ -13,7 +13,9 @@ prerequisite.
 
 Make the ARM helpers PIC-safe on ELF and Mach-O, and update legacy
 platform code for current Clang, Android, and Apple APIs while
-preserving the existing ARMv7 and AArch64 JIT paths.
+preserving the existing ARMv7 and AArch64 JIT paths. Keep large-file
+zfile seeks working on 32-bit Android API 21 through its public
+lseek64 interface.
 ---
  Makefile.libretro                  | 103 +++++++++++++++--
  libretro/libco/aarch64.c           |   7 +-
@@ -42,7 +44,8 @@ preserving the existing ARMv7 and AArch64 JIT paths.
  src/od-pandora/sigsegv_handler.cpp | 174 +++++++++++++++++++----------
  src/od-pandora/sysconfig.h         |  12 +-
  src/od-pandora/target.h            |   2 +-
- 27 files changed, 426 insertions(+), 184 deletions(-)
+ src/zfile.cpp                      |  85 ++++++++++++--
+ 28 files changed, 503 insertions(+), 192 deletions(-)
 
 diff --git a/Makefile.libretro b/Makefile.libretro
 index b2f0faf..5285435 100644
@@ -1538,6 +1541,139 @@ index 614553a..a22de8b 100644
  }
  
  #else
+diff --git a/src/zfile.cpp b/src/zfile.cpp
+index daeef9c..7f88e62 100644
+--- a/src/zfile.cpp
++++ b/src/zfile.cpp
+@@ -31,6 +31,64 @@
+ 
+ static struct zfile *zlist = 0;
+ 
++#if defined(__ANDROID__) && !defined(__LP64__) && __ANDROID_API__ < 24
++/* 32-bit Bionic has lseek64(), but no 64-bit stdio seek functions yet. */
++#define UAE4ARM_ANDROID_STDIO_LFS_COMPAT 1
++#endif
++
++static bool zfile_prepare_file (FILE *f)
++{
++#ifdef UAE4ARM_ANDROID_STDIO_LFS_COMPAT
++	/* Keep the stream and descriptor positions equal for the lseek64 fallback. */
++	return setvbuf (f, NULL, _IONBF, 0) == 0;
++#else
++	(void)f;
++	return true;
++#endif
++}
++
++static uae_s64 zfile_file_ftell (FILE *f)
++{
++#ifdef UAE4ARM_ANDROID_STDIO_LFS_COMPAT
++	off64_t result = -1;
++	flockfile (f);
++	int fd = fileno (f);
++	if (fd >= 0) {
++		do {
++			result = lseek64 (fd, 0, SEEK_CUR);
++		} while (result == -1 && errno == EINTR);
++	}
++	funlockfile (f);
++	return result;
++#else
++	return _ftelli64 (f);
++#endif
++}
++
++static int zfile_file_fseek (FILE *f, uae_s64 offset, int mode)
++{
++#ifdef UAE4ARM_ANDROID_STDIO_LFS_COMPAT
++	off64_t result = -1;
++	flockfile (f);
++	int fd = fileno (f);
++	if (fd >= 0) {
++		do {
++			result = lseek64 (fd, (off64_t)offset, mode);
++		} while (result == -1 && errno == EINTR);
++		if (result != -1) {
++			if (fpurge (f) == EOF)
++				result = -1;
++			else
++				clearerr (f);
++		}
++	}
++	funlockfile (f);
++	return result == -1 ? -1 : 0;
++#else
++	return _fseeki64 (f, offset, mode);
++#endif
++}
++
+ const TCHAR *uae_archive_extensions[] = { _T("zip"), _T("rar"), _T("7z"), _T("lha"), _T("lzh"), _T("lzx"), _T("tar"), NULL };
+ 
+ #define MAX_CACHE_ENTRIES 10
+@@ -1218,7 +1276,9 @@ static struct zfile *zfile_fopen_nozip (const TCHAR *name, const TCHAR *mode)
+   l->name = my_strdup (name);
+   l->mode = my_strdup (mode);
+ 	f = uae_tfopen (name, mode);
+-  if (!f) {
++  if (!f || !zfile_prepare_file (f)) {
++    if (f)
++      fclose (f);
+     zfile_fclose (l);
+     return 0;
+   }
+@@ -1295,10 +1355,12 @@ static struct zfile *zfile_fopen_2 (const TCHAR *name, const TCHAR *mode, int ma
+   	} else {
+ 			f = uae_tfopen (l->name, mode);
+   	}
+-    if (!f) {
+-    	zfile_fclose (l);
+-    	return 0;
+-    }
++		if (!f || !zfile_prepare_file (f)) {
++			if (f)
++				fclose (f);
++			zfile_fclose (l);
++			return 0;
++		}
+ 		if (my_stat (l->name, &st))
+ 			l->size = st.size;
+   	l->f = f;
+@@ -1555,9 +1617,16 @@ struct zfile *zfile_dup (struct zfile *zf)
+ 		if (!zf->name || !zf->mode)
+ 			return NULL;
+ 		FILE *ff = uae_tfopen (zf->name, zf->mode);
+-		if (!ff)
++		if (!ff || !zfile_prepare_file (ff)) {
++			if (ff)
++				fclose (ff);
+ 			return NULL;
++		}
+ 		nzf = zfile_create (zf);
++		if (!nzf) {
++			fclose (ff);
++			return NULL;
++		}
+     nzf->f = ff;
+   }
+   zfile_fseek (nzf, zf->seek, SEEK_SET);
+@@ -1726,7 +1795,7 @@ uae_s64 zfile_ftell (struct zfile *z)
+ {
+ 	if (z->data || z->dataseek || z->parent)
+ 	  return z->seek;
+-	return _ftelli64 (z->f);
++	return zfile_file_ftell (z->f);
+ }
+ 
+ uae_s64 zfile_fseek (struct zfile *z, uae_s64 offset, int mode)
+@@ -1757,7 +1826,7 @@ uae_s64 zfile_fseek (struct zfile *z, uae_s64 offset, int mode)
+ 	  }
+ 	  return ret;
+   } else {
+-    return _fseeki64 (z->f, offset, mode);
++    return zfile_file_fseek (z->f, offset, mode);
+   }
+   return 1;
+ }
 -- 
 2.43.0
 
