@@ -54,7 +54,7 @@ if(CORE_SYSTEM_NAME STREQUAL windows)
                     GIT_VERSION=
                     MSYSTEM=${MSYSTEM}
                     platform=win
-                    )
+                    DEPS_PREFIX=${ADDON_DEPENDS_PATH})
 elseif(CORE_SYSTEM_NAME STREQUAL linux)
   if(CMAKE_SYSTEM_PROCESSOR STREQUAL arm64 OR CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
     set(PLATFORM unix-aarch64)
@@ -71,11 +71,13 @@ elseif(CORE_SYSTEM_NAME STREQUAL linux)
                     ${LIBRETRO_DEBUG}
                     GIT_VERSION=
                     platform=${PLATFORM}
-                    )
+                    DEPS_PREFIX=${ADDON_DEPENDS_PATH})
 elseif(CORE_SYSTEM_NAME STREQUAL osx)
   set(PLATFORM_CMAKE_OPTIONS)
+  set(PLATFORM osx)
   if(CPU STREQUAL arm64)
     set(ARCH arm)
+    set(PLATFORM osx-arm64)
   elseif(CPU STREQUAL x86_64)
     set(ARCH intel)
     set(PLATFORM_CMAKE_OPTIONS )
@@ -87,14 +89,20 @@ elseif(CORE_SYSTEM_NAME STREQUAL osx)
                     -f Makefile.libretro
                     ${build_job_count}
                     ${LIBRETRO_DEBUG}
+                    CC=${CMAKE_C_COMPILER}
+                    CXX=${CMAKE_CXX_COMPILER}
+                    CC_AS=${CMAKE_C_COMPILER}
                     arch=${ARCH}
                     CROSS_COMPILE=1
                     GIT_VERSION=
+                    SDKROOT=${CMAKE_OSX_SYSROOT}
+                    MACOSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}
                     LIBRETRO_APPLE_ISYSROOT=${CMAKE_OSX_SYSROOT}
-                    LIBRETRO_APPLE_PLATFORM=${CPU}-apple-macos
-                    platform=osx
+                    LIBRETRO_APPLE_PLATFORM=${CPU}-apple-macos${CMAKE_OSX_DEPLOYMENT_TARGET}
+                    platform=${PLATFORM}
                     ${PLATFORM_CMAKE_OPTIONS}
-                    )
+                    MINVERSION=-mmacosx-version-min=${CMAKE_OSX_DEPLOYMENT_TARGET}
+                    DEPS_PREFIX=${ADDON_DEPENDS_PATH})
 elseif(CORE_SYSTEM_NAME STREQUAL ios OR CORE_SYSTEM_NAME STREQUAL darwin_embedded)
   if(CORE_PLATFORM_NAME STREQUAL ios)
     set(LIBRETRO_SONAME uae4arm_libretro_ios${CMAKE_SHARED_LIBRARY_SUFFIX})
@@ -110,7 +118,7 @@ elseif(CORE_SYSTEM_NAME STREQUAL ios OR CORE_SYSTEM_NAME STREQUAL darwin_embedde
                                                   ${LIBRETRO_DEBUG}
                                                   GIT_VERSION=
                                                   platform=${PLATFORM}
-                                                  )
+                                                  DEPS_PREFIX=${ADDON_DEPENDS_PATH})
   elseif(CORE_PLATFORM_NAME STREQUAL tvos)
     set(LIBRETRO_SONAME uae4arm_libretro_tvos${CMAKE_SHARED_LIBRARY_SUFFIX})
     set(BUILD_COMMAND IOSSDK=${CMAKE_OSX_SYSROOT} $(MAKE)
@@ -120,31 +128,34 @@ elseif(CORE_SYSTEM_NAME STREQUAL ios OR CORE_SYSTEM_NAME STREQUAL darwin_embedde
                                                   ${LIBRETRO_DEBUG}
                                                   GIT_VERSION=
                                                   platform=tvos-arm64
-                                                  )
+                                                  DEPS_PREFIX=${ADDON_DEPENDS_PATH})
   endif()
 elseif(CORE_SYSTEM_NAME STREQUAL android)
   if(NOT NDKROOT)
     message(FATAL_ERROR "${PROJECT_NAME} needs NDKROOT for Android. Missing Toolchain file?")
   endif()
-  if(CPU STREQUAL armeabi-v7a OR CPU STREQUAL arm64-v8a)
-    set(PLATFORM ${CPU})
+  if(CPU STREQUAL armeabi-v7a)
+    set(PLATFORM android-armv7)
+  elseif(CPU STREQUAL arm64-v8a)
+    set(PLATFORM android-aarch64)
   elseif(CPU STREQUAL i686)
     set(PLATFORM x86)
   else()
     message(FATAL_ERROR "${PROJECT_NAME} needs Android ${CPU} build command in CMakeLists.txt!")
   endif()
-  set(BUILD_COMMAND GNUMAKE=$(MAKE) ${NDKROOT}/ndk-build
-                                    -C jni
-                                    ${build_job_count}
-                                    ${LIBRETRO_DEBUG}
-                                    APP_ABI=${PLATFORM}
-                                    APP_SHORT_COMMANDS=true
-                                    GIT_VERSION=
-                                    NDK_LIBS_OUT=${PROJECT_SOURCE_DIR}/${LIBRETRO_BINARY_DIR}
-                                    V=1
-                                    V7NEONOPTIMIZATION=1
-                                    
-                    && cp ${PROJECT_SOURCE_DIR}/${LIBRETRO_BINARY_DIR}/${PLATFORM}/${LIBRETRO_JNISONAME} ${PROJECT_SOURCE_DIR}/${LIBRETRO_BINARY_DIR}/${LIBRETRO_SONAME})
+  set(LIBRETRO_SONAME uae4arm_libretro_android${CMAKE_SHARED_LIBRARY_SUFFIX})
+  get_filename_component(TOOLCHAIN_DIR ${CMAKE_C_COMPILER} DIRECTORY)
+  set(BUILD_COMMAND PATH=${TOOLCHAIN_DIR}:$ENV{PATH} $(MAKE)
+                                                     -C .
+                                                     -f Makefile.libretro
+                                                     ${build_job_count}
+                                                     ${LIBRETRO_DEBUG}
+                                                     CC=${CMAKE_C_COMPILER}
+                                                     CXX=${CMAKE_CXX_COMPILER}
+                                                     CC_AS=${CMAKE_C_COMPILER}
+                                                     GIT_VERSION=
+                                                     platform=${PLATFORM}
+                                                     DEPS_PREFIX=${ADDON_DEPENDS_PATH})
 elseif(CORE_SYSTEM_NAME STREQUAL freebsd)
   set(BUILD_COMMAND $(MAKE)
                     -C .
@@ -153,7 +164,7 @@ elseif(CORE_SYSTEM_NAME STREQUAL freebsd)
                     ${LIBRETRO_DEBUG}
                     GIT_VERSION=
                     platform=unix
-                    )
+                    DEPS_PREFIX=${ADDON_DEPENDS_PATH})
 else()
   message(FATAL_ERROR "${PROJECT_NAME} - Unknown system: ${CORE_SYSTEM_NAME}")
 endif()
