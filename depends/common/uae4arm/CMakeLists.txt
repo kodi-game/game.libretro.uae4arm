@@ -126,23 +126,25 @@ elseif(CORE_SYSTEM_NAME STREQUAL android)
   if(NOT NDKROOT)
     message(FATAL_ERROR "${PROJECT_NAME} needs NDKROOT for Android. Missing Toolchain file?")
   endif()
-  if(CPU STREQUAL armeabi-v7a)
-    set(PLATFORM android-armv7)
+  if(CPU STREQUAL armeabi-v7a OR CPU STREQUAL arm64-v8a)
+    set(PLATFORM ${CPU})
   elseif(CPU STREQUAL i686)
     set(PLATFORM x86)
   else()
     message(FATAL_ERROR "${PROJECT_NAME} needs Android ${CPU} build command in CMakeLists.txt!")
   endif()
-  set(LIBRETRO_SONAME uae4arm_libretro_android${CMAKE_SHARED_LIBRARY_SUFFIX})
-  get_filename_component(TOOLCHAIN_DIR ${CMAKE_C_COMPILER} DIRECTORY)
-  set(BUILD_COMMAND PATH=${TOOLCHAIN_DIR}:$ENV{PATH} $(MAKE)
-                                                     -C .
-                                                     -f Makefile.libretro
-                                                     ${build_job_count}
-                                                     ${LIBRETRO_DEBUG}
-                                                     GIT_VERSION=
-                                                     platform=${PLATFORM}
-                                                     )
+  set(BUILD_COMMAND GNUMAKE=$(MAKE) ${NDKROOT}/ndk-build
+                                    -C jni
+                                    ${build_job_count}
+                                    ${LIBRETRO_DEBUG}
+                                    APP_ABI=${PLATFORM}
+                                    APP_SHORT_COMMANDS=true
+                                    GIT_VERSION=
+                                    NDK_LIBS_OUT=${PROJECT_SOURCE_DIR}/${LIBRETRO_BINARY_DIR}
+                                    V=1
+                                    V7NEONOPTIMIZATION=1
+                                    
+                    && cp ${PROJECT_SOURCE_DIR}/${LIBRETRO_BINARY_DIR}/${PLATFORM}/${LIBRETRO_JNISONAME} ${PROJECT_SOURCE_DIR}/${LIBRETRO_BINARY_DIR}/${LIBRETRO_SONAME})
 elseif(CORE_SYSTEM_NAME STREQUAL freebsd)
   set(BUILD_COMMAND $(MAKE)
                     -C .
