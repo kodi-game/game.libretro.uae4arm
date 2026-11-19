@@ -57,6 +57,42 @@ msgctxt "#30008"
 msgid "fast copper"
 msgstr ""
 
+msgctxt "#30009"
+msgid "A500"
+msgstr ""
+
+msgctxt "#30010"
+msgid "A600"
+msgstr ""
+
+msgctxt "#30011"
+msgid "A1200"
+msgstr ""
+
+msgctxt "#30012"
+msgid "CDTV"
+msgstr ""
+
+msgctxt "#30013"
+msgid "CD32"
+msgstr ""
+
+msgctxt "#30014"
+msgid "1 MB"
+msgstr ""
+
+msgctxt "#30015"
+msgid "2 MB"
+msgstr ""
+
+msgctxt "#30016"
+msgid "4 MB"
+msgstr ""
+
+msgctxt "#30017"
+msgid "8 MB"
+msgstr ""
+
 #~ msgctxt "#30000"
 #~ msgid "Settings"
 #~ msgstr "Pengaturan"
