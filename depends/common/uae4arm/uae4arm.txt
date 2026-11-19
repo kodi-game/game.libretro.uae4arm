@@ -1,1 +1,1 @@
-uae4arm https://github.com/Chips-fr/uae4arm-rpi/archive/276979efa4f862d1f84afeff5a2e794de4744024.tar.gz
+uae4arm https://github.com/Chips-fr/uae4arm-rpi/archive/fc1cb90afd6b5c6d9bb933d111c4c99c90f37688.tar.gz

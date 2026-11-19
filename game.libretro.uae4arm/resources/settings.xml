@@ -8,12 +8,12 @@
 					<default>Auto</default>
 					<constraints>
 						<options>
-							<option>Auto</option>
-							<option>A500</option>
-							<option>A600</option>
-							<option>A1200</option>
-							<option>CDTV</option>
-							<option>CD32</option>
+							<option label="16316">Auto</option>
+							<option label="30009">A500</option>
+							<option label="30010">A600</option>
+							<option label="30011">A1200</option>
+							<option label="30012">CDTV</option>
+							<option label="30013">CD32</option>
 						</options>
 					</constraints>
 					<control type="list" format="string" />
@@ -23,11 +23,11 @@
 					<default>None</default>
 					<constraints>
 						<options>
-							<option>None</option>
-							<option>1 MB</option>
-							<option>2 MB</option>
-							<option>4 MB</option>
-							<option>8 MB</option>
+							<option label="231">None</option>
+							<option label="30014">1 MB</option>
+							<option label="30015">2 MB</option>
+							<option label="30016">4 MB</option>
+							<option label="30017">8 MB</option>
 						</options>
 					</constraints>
 					<control type="list" format="string" />
@@ -55,8 +55,8 @@
 					<default>on</default>
 					<constraints>
 						<options>
-							<option>on</option>
-							<option>off</option>
+							<option label="16041">on</option>
+							<option label="351">off</option>
 						</options>
 					</constraints>
 					<control type="list" format="string" />
@@ -79,8 +79,8 @@
 					<default>off</default>
 					<constraints>
 						<options>
-							<option>off</option>
-							<option>on</option>
+							<option label="351">off</option>
+							<option label="16041">on</option>
 						</options>
 					</constraints>
 					<control type="list" format="string" />
@@ -101,8 +101,8 @@
 					<default>on</default>
 					<constraints>
 						<options>
-							<option>on</option>
-							<option>off</option>
+							<option label="16041">on</option>
+							<option label="351">off</option>
 						</options>
 					</constraints>
 					<control type="list" format="string" />

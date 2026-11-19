@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <addon id="game.libretro.uae4arm"
 		name="Commodore - Amiga (UAE4ARM)"
-		version="0.5.0.12"
+		version="0.5.0.13"
 		provider-name="TomB/Chips-fr">
 	<requires>
 		<import addon="game.libretro" version="1.0.0"/>
@@ -11,12 +11,13 @@
 	</requires>
 	<extension point="kodi.gameclient"
 			library_@PLATFORM@="@LIBRARY_FILENAME@">
-		<platforms></platforms>
+		<platforms>Commodore - Amiga</platforms>
 		<extensions>adf|dms|zip|ipf|hdf|lha|uae|cue|iso</extensions>
 		<supports_vfs>false</supports_vfs>
 		<supports_standalone>false</supports_standalone>
 		<supports_disc_control>false</supports_disc_control>
-		<requires_opengl>false</requires_opengl>
+		<libretro_core>uae4arm_libretro</libretro_core>
+		<savestate_features>serialized</savestate_features>
 	</extension>
 	<extension point="xbmc.addon.metadata">
 		<license>GPLv2</license>
